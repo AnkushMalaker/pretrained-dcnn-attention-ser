@@ -1,0 +1,5 @@
+__pycache__
+.vscode
+.devcontainer.json
+filename_transcript.csv
+dataset/
