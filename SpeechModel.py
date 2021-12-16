@@ -1,4 +1,3 @@
-from functools import reduce
 from typing import Tuple
 from tensorflow.keras import layers as L
 from tensorflow.keras.models import Model
@@ -8,11 +7,12 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import SparseCategoricalCrossentropy
 
 class SpeechModel:
-    
+    # verify specifications etc from paper 
     def __init__(self) -> None:
     # def __init__(self, input_shape: Tuple) -> None:
         # self.input_shape = input_shape
         print("Downloading ResNet Weights")
+        # input_shape should be more than 32 in h and w : (64, 64, 3)
         self.resnet_layer = ResNet50V2(
             include_top=False, weights='imagenet', input_shape=(64,64,3)
         )
@@ -30,7 +30,7 @@ class SpeechModel:
 
     def create_model(self):
         # td_input_layer = L.Input(self.input_shape)
-        td_input_layer = L.Input([14,64,64,3])
+        td_input_layer = L.Input([8,64,64,3])
         conv_model = self.create_conv_model()
         td_conv_layer = L.TimeDistributed(conv_model)(td_input_layer)
         td_bilstm = L.Bidirectional(L.LSTM(64, return_sequences=True))(td_conv_layer)

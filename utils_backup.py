@@ -1,10 +1,7 @@
-# USING LIBROSA IN THIS MODULE CUZ TENSORFLOW AUDIO IS SOMEHOW UNABLE TO READ A WAV FILE HOW IS THAT EVEN POSSIBLE WHY IS LIBROSA ABLE TO DO IT WIHOUT ERRORS BUT TENSORFLOW DOESNT JUST READ THE FILE ??
-
 import os
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
-import librosa
-import numpy as np
+import wave
 
 EMOTION_DICT_RAVDEES = {
     "01": "neutral",
@@ -17,30 +14,43 @@ EMOTION_DICT_RAVDEES = {
     "08": "surprised",
 }
 
-# Data augmentations ka bhi add karo yahan
-
+# Data augmentations ka bhi add karo yahan 
 
 def load_wav(file_path):
-    file_path = file_path.numpy()
-    wav, sr = librosa.load(file_path, mono=True, duration=3)
+    # https://github.com/mozilla/DeepSpeech/issues/2048
+    import pandas
+    import sys
+
+    def compare_header_and_size(wav_filename):
+        with wave.open(wav_filename, 'r') as fin:
+            header_fsize = (fin.getnframes() * fin.getnchannels() * fin.getsampwidth()) + 44
+        file_fsize = os.path.getsize(wav_filename)
+        return header_fsize != file_fsize
+
+    df = pandas.read_csv(sys.argv[1])
+    invalid = df.apply(lambda x: compare_header_and_size(x['wav_filename']), axis=1)
+    print('The following files are corrupted:')
+    print(df[invalid].values)
+
     pre_emp = 0.97
+    file_contents = tf.io.read_file(file_path)
+
+    # Default SR is 22050, putting desired_samples to 66150 to get 3 second sample
+    wav, sr = tf.audio.decode_wav(
+        file_contents, desired_channels=1, desired_samples=66150
+    )
+
+    wav = tf.squeeze(wav, axis=-1)
 
     # Apply preamp if needed
-    wav = np.append(wav[0], wav[1:] - pre_emp * wav[:-1])
-    wav = tf.convert_to_tensor(wav, dtype=tf.float32)
-    sr = tf.convert_to_tensor(sr, dtype=tf.float32)
+    wav = tf.experimental.numpy.append(wav[0], wav[1:] - pre_emp * wav[:-1])
+
     return wav, sr
 
 
-def get_framed_mel_spectrograms(wav, sr=22050):
-    # The duration of clips is 3 seconds, ie. 3000 miliseconds.
-    frame_length = tf.cast(sr * (25 / 1000), tf.int32)  # 25 ms
-    frame_step = tf.cast(sr * (10 / 1000), tf.int32)  # 10 ms
+def get_mfcc(wav, sr=22050):
     stft_out = tf.signal.stft(
-        wav,
-        frame_length=frame_length,
-        frame_step=frame_step,
-        window_fn=tf.signal.hamming_window,
+        wav, 400, 160, window_fn=tf.signal.hamming_window, pad_end=False
     )
     num_spectrogram_bins = tf.shape(stft_out)[-1]
     stft_abs = tf.abs(stft_out)
@@ -50,10 +60,9 @@ def get_framed_mel_spectrograms(wav, sr=22050):
         num_mel_bins, num_spectrogram_bins, sr, lower_edge_hz, upper_edge_hz
     )
     mel_spectrograms = tf.tensordot(stft_abs, linear_to_mel_weight_matrix, 1)
-
-    # mel_spectrograms.set_shape(
-    #     stft_abs.shape[:-1].concatenate(linear_to_mel_weight_matrix.shape[-1:])
-    # )
+    mel_spectrograms.set_shape(
+        stft_abs.shape[:-1].concatenate(linear_to_mel_weight_matrix.shape[-1:])
+    )
 
     log_mel_spectrograms = tf.math.log(mel_spectrograms + 1e-6)
     log_mel_d1 = log_mel_spectrograms - tf.roll(log_mel_spectrograms, -1, axis=0)
@@ -69,45 +78,31 @@ def get_framed_mel_spectrograms(wav, sr=22050):
 
     return framed_log_mels
 
-
 def get_dataset(
     DATA_DIR: str,
 ):
     def decompose_label(file_path: str):
         return label_to_int[file_path.split("-")[2]]
 
-    def tf_compatible_file_loader(file_path):
-        wav, sr = tf.py_function(load_wav, [file_path], [tf.float32, tf.float32])
-        return wav, sr
-
     file_path_list = os.listdir(DATA_DIR)
     label_to_int = dict({(key, i) for i, key in enumerate(EMOTION_DICT_RAVDEES.keys())})
 
     labels = [decompose_label(file_path) for file_path in file_path_list]
-    file_path_list = [DATA_DIR + "/" + file_path for file_path in file_path_list]
     train_fps, val_fps, train_labels, val_labels = train_test_split(
         file_path_list, labels, test_size=0.1
     )
 
     train_files_ds = tf.data.Dataset.from_tensor_slices(train_fps)
-    train_wav_ds = train_files_ds.map(
-        tf_compatible_file_loader, # num_parallel_calls=tf.data.AUTOTUNE
-    )
-    train_mfcc_ds = train_wav_ds.map(
-        get_framed_mel_spectrograms, # num_parallel_calls=tf.data.AUTOTUNE
-    )
+    train_wav_ds = train_files_ds.map(load_wav, num_parallel_calls=tf.data.AUTOTUNE)
+    train_mfcc_ds = train_wav_ds.map(get_mfcc, num_parallel_calls=tf.data.AUTOTUNE)
 
     train_labels_ds = tf.data.Dataset.from_tensor_slices(train_labels)
 
     train_ds = tf.data.Dataset.zip((train_mfcc_ds, train_labels_ds))
 
     val_files_ds = tf.data.Dataset.from_tensor_slices(val_fps)
-    val_wav_ds = val_files_ds.map(
-        tf_compatible_file_loader, # num_parallel_calls=tf.data.AUTOTUNE
-    )
-    val_mfcc_ds = val_wav_ds.map(
-        get_framed_mel_spectrograms, # num_parallel_calls=tf.data.AUTOTUNE
-    )
+    val_wav_ds = val_files_ds.map(load_wav, num_parallel_calls=tf.data.AUTOTUNE)
+    val_mfcc_ds = val_wav_ds.map(get_mfcc, num_parallel_calls=tf.data.AUTOTUNE)
 
     val_labels_ds = tf.data.Dataset.from_tensor_slices(val_labels)
 
