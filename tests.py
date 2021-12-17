@@ -10,7 +10,17 @@ def test_loadwav():
 # Dataset
 def test_dataset():
     from utils import get_dataset
-    train_ds, val_ds = get_dataset("./dataset")
+    train_ds, val_ds = get_dataset("./dataset", cache=False)
 
     batch, label = next(iter(train_ds))
     print(batch.shape)
+
+# SpeechModel
+def test_speechModel():
+    from SpeechModel import SpeechModel
+    sp = SpeechModel()
+    model = sp.create_model()
+    print(sp.model_summary())
+
+if __name__=='__main__':
+    print("No tests")

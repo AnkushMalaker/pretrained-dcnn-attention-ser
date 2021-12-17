@@ -23,17 +23,17 @@ EMOTION_DICT_RAVDEES = {
 def load_wav(file_path):
     file_path = file_path.numpy()
     wav, sr = librosa.load(file_path, mono=True, duration=3)
-    pre_emp = 0.97
 
-    # Apply preamp if needed
+    pre_emp = 0.97
     wav = np.append(wav[0], wav[1:] - pre_emp * wav[:-1])
+
     wav = tf.convert_to_tensor(wav, dtype=tf.float32)
     sr = tf.convert_to_tensor(sr, dtype=tf.float32)
     return wav, sr
 
 
 def get_framed_mel_spectrograms(wav, sr=22050):
-    # The duration of clips is 3 seconds, ie. 3000 miliseconds.
+    # The duration of clips is 3 seconds, ie. 3000 miliseconds. Do some quick math to figure out frame_length.
     frame_length = tf.cast(sr * (25 / 1000), tf.int32)  # 25 ms
     frame_step = tf.cast(sr * (10 / 1000), tf.int32)  # 10 ms
     stft_out = tf.signal.stft(
@@ -70,9 +70,7 @@ def get_framed_mel_spectrograms(wav, sr=22050):
     return framed_log_mels
 
 
-def get_dataset(
-    DATA_DIR: str,
-):
+def get_dataset(DATA_DIR: str, cache: bool = True):
     def decompose_label(file_path: str):
         return label_to_int[file_path.split("-")[2]]
 
@@ -91,10 +89,10 @@ def get_dataset(
 
     train_files_ds = tf.data.Dataset.from_tensor_slices(train_fps)
     train_wav_ds = train_files_ds.map(
-        tf_compatible_file_loader, # num_parallel_calls=tf.data.AUTOTUNE
+        tf_compatible_file_loader,  num_parallel_calls=tf.data.AUTOTUNE
     )
     train_mfcc_ds = train_wav_ds.map(
-        get_framed_mel_spectrograms, # num_parallel_calls=tf.data.AUTOTUNE
+        get_framed_mel_spectrograms,  num_parallel_calls=tf.data.AUTOTUNE
     )
 
     train_labels_ds = tf.data.Dataset.from_tensor_slices(train_labels)
@@ -103,17 +101,20 @@ def get_dataset(
 
     val_files_ds = tf.data.Dataset.from_tensor_slices(val_fps)
     val_wav_ds = val_files_ds.map(
-        tf_compatible_file_loader, # num_parallel_calls=tf.data.AUTOTUNE
+        tf_compatible_file_loader,  num_parallel_calls=tf.data.AUTOTUNE
     )
     val_mfcc_ds = val_wav_ds.map(
-        get_framed_mel_spectrograms, # num_parallel_calls=tf.data.AUTOTUNE
+        get_framed_mel_spectrograms,  num_parallel_calls=tf.data.AUTOTUNE
     )
 
     val_labels_ds = tf.data.Dataset.from_tensor_slices(val_labels)
 
     val_ds = tf.data.Dataset.zip((val_mfcc_ds, val_labels_ds))
 
-    train_ds = train_ds.batch(32).prefetch(tf.data.AUTOTUNE)
-    val_ds = val_ds.batch(32).prefetch(tf.data.AUTOTUNE)
-
+    if cache:
+        train_ds = train_ds.batch(32).prefetch(tf.data.AUTOTUNE)
+        val_ds = val_ds.batch(32).prefetch(tf.data.AUTOTUNE)
+    else:
+        train_ds = train_ds.batch(32).prefetch(tf.data.AUTOTUNE)
+        val_ds = val_ds.batch(32).prefetch(tf.data.AUTOTUNE)
     return train_ds, val_ds
