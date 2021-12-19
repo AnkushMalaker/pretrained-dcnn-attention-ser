@@ -48,7 +48,7 @@ class SpeechModel:
             td_conv_layer
         )  # (8, 256)
 
-        # Attention layer, returns matmul(distribution, value), distribution
+        # Attention layer, returns matmul(distribution, value)
         # distribution is of shape [batch_size, Tq, Tv] while value is of shape [batch_size, Tv, dim]
         # The inner dimentinons except batch_size are same, we get output of dimention [batch_size, tq, dim]
         # Here, our Query and Value dimentions are 8, 256. That is, Tv, Tq = 8 and dim = 256
@@ -61,15 +61,14 @@ class SpeechModel:
         )  # Calculate mean along each sequence
         # There is some error in this attention layer (could be the reason loss is going to nan)
 
-
-        # These dimentions are changed due to the different conv model being used. 
+        # These dimentions are changed due to the different conv model being used.
         td_dense = L.Dense(256, activation="relu")(bilstm_attention)
         td_dense = L.Dropout(0.25)(td_dense)
         td_dense = L.Dense(128, activation="relu")(td_dense)
         td_dense = L.Dense(128, activation="relu")(td_dense)
         td_dense = L.Dropout(0.25)(td_dense)
 
-        td_output_layer = L.Dense(7)(td_dense)
+        td_output_layer = L.Dense(8)(td_dense)
 
         td_model = Model(td_input_layer, td_output_layer)
 
@@ -80,6 +79,6 @@ class SpeechModel:
 
 
 if __name__ == "__main__":
-    sp = SpeechModel()
-    model = sp.create_model()
+    SP = SpeechModel()
+    model = SP.create_model()
     print(model.summary())

@@ -1,0 +1,1 @@
+The training script can be run to obtain the saved_model. If you have resource constraints or some other issues that prevent you from training, let me know via mail or linkedin and I'd be happy to send over the saved weights. 

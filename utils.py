@@ -17,7 +17,7 @@ EMOTION_DICT_RAVDEES = {
     "08": "surprised",
 }
 
-# Data augmentations ka bhi add karo yahan
+# Data augmentations not implemented yet
 
 
 def load_wav(file_path):
@@ -112,8 +112,8 @@ def get_dataset(DATA_DIR: str, cache: bool = True):
     val_ds = tf.data.Dataset.zip((val_mfcc_ds, val_labels_ds))
 
     if cache:
-        train_ds = train_ds.batch(32).prefetch(tf.data.AUTOTUNE)
-        val_ds = val_ds.batch(32).prefetch(tf.data.AUTOTUNE)
+        train_ds = train_ds.batch(32).prefetch(tf.data.AUTOTUNE).cache()
+        val_ds = val_ds.batch(32).prefetch(tf.data.AUTOTUNE).cache()
     else:
         train_ds = train_ds.batch(32).prefetch(tf.data.AUTOTUNE)
         val_ds = val_ds.batch(32).prefetch(tf.data.AUTOTUNE)
