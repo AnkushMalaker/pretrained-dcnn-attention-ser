@@ -62,6 +62,7 @@ The model uses a [TimeDistributed](https://www.tensorflow.org/api_docs/python/tf
 # Limitations
 1. Currently this repo only supports dataset preparation for the RAVDESS model since different datasets describe their labels differently. You can still use this repo with other datasets by defining your own function to load the datasets and using the `get_framed_log_melspectrograms` function from `utils.py`.  
 Then you may use `SpeechModel.py` to create a model based on specifications form the paper and train.  
+2. Since I couldn't find a pretrained AlexNet model and didn't have the resources myself to train one from scratch, I used a pretrained ResNet 50 model. This may affect the performance and not match the results given by the authors.  
 
 
 # Credits and acknowledgements:
